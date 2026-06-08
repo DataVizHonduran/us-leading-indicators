@@ -68,7 +68,7 @@ def create_dashboard():
             "Building Permits as % of 24-Month High",
             "Mfg Orders to Inventories from 24-Month High",
             "Diffusion Index of PCE Spending Categories (yoy growth)",
-            ""  # Empty for now, can add 8th chart
+            "Cyclical Hiring (6mma Job Creation, '000)"
         ],
         vertical_spacing=0.1,
         horizontal_spacing=0.1
@@ -199,7 +199,57 @@ def create_dashboard():
     except Exception as e:
         print(f"Could not process PCE data: {e}")
         print("Make sure pce_spend.csv is in the same directory")
-    
+
+    # ===== CHART 8: Cyclical Hiring =====
+    print("Processing Chart 8: Cyclical Hiring...")
+    cyclical_series = {
+        "Construction": "USCONS",
+        "Manufacturing": "MANEMP",
+        "Retail Trade": "USTRADE",
+        "Wholesale Trade": "USWTRADE",
+        "Leisure and Hospitality": "USLAH",
+    }
+    cyclical_df = get_fred(list(cyclical_series.values()), 100).dropna()
+    cyclical_hiring = cyclical_df.sum(axis=1).diff().rolling(6).mean()
+    x0 = cyclical_hiring.index.min()
+    y0, y1 = -500, 500
+
+    fig.add_trace(go.Scatter(
+        x=cyclical_hiring.index,
+        y=cyclical_hiring.values,
+        mode='lines',
+        name='Cyclical Hiring (6mma)',
+        line=dict(color='blue'),
+        showlegend=False
+    ), row=4, col=2)
+
+    fig.add_trace(go.Scatter(
+        x=cyclical_hiring.index,
+        y=[0] * len(cyclical_hiring),
+        mode='lines',
+        name='Zero line',
+        line=dict(dash='dash', color='gray'),
+        showlegend=False
+    ), row=4, col=2)
+
+    for date_val, value in recession_data["USREC"].items():
+        if value == 1:
+            fig.add_shape(
+                type="rect",
+                x0=date_val,
+                x1=date_val + pd.offsets.MonthEnd(0),
+                y0=y0,
+                y1=y1,
+                fillcolor="lightgray",
+                opacity=0.7,
+                line_width=0,
+                layer="below",
+                row=4, col=2
+            )
+
+    fig.update_xaxes(range=[x0, x1], row=4, col=2)
+    fig.update_yaxes(range=[y0, y1], row=4, col=2)
+
     # Update layout
     fig.update_layout(
         title={
